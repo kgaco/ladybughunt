@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>てんとう虫ハント</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: radial-gradient(ellipse at center, #a8d8a8 0%, #7bc47b 40%, #5aa05a 100%);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+    user-select: none;
+    font-family: 'Helvetica Neue', 'Hiragino Sans', sans-serif;
+  }
+  canvas { display: block; position: absolute; top: 0; left: 0; }
+
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 8px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: rgba(255,255,255,0.9);
+  }
+  .hud-label {
+    font-size: 11px;
+    opacity: 0.75;
+    letter-spacing: 0.5px;
+  }
+  .hud-val {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    transition: color 0.2s;
+  }
+  #hi-val.glow {
+    color: #ffd700;
+    text-shadow: 0 0 12px #ffd700, 0 1px 4px rgba(0,0,0,0.4);
+  }
+
+  /* ── START画面 ── */
+  #start-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    z-index: 20;
+  }
+  #start-screen h1 {
+    font-size: 42px;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  #start-screen p {
+    font-size: 16px;
+    color: rgba(255,255,255,0.8);
+    text-align: center;
+    line-height: 1.6;
+    max-width: 280px;
+  }
+  .btn-start {
+    padding: 18px 48px;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #e8221a, #c40000);
+    border: none;
+    border-radius: 50px;
+    box-shadow: 0 6px 24px rgba(200,0,0,0.45);
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: transform 0.1s;
+  }
+  .btn-start:active { transform: scale(0.95); }
+
+  /* ── GAMEOVER画面 ── */
+  #gameover-screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(0,0,0,0.55);
+    z-index: 20;
+  }
+  #gameover-screen h2 {
+    font-size: 48px;
+    color: #ff4444;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  }
+  .score-box {
+    background: rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 20px 40px;
+    text-align: center;
+    color: #fff;
+  }
+  .score-box .label { font-size: 14px; opacity: 0.75; }
+  .score-box .val   { font-size: 40px; font-weight: 700; }
+  #new-record {
+    font-size: 24px;
+    color: #ffd700;
+    text-shadow: 0 0 16px #ffd700;
+    display: none;
+    animation: pulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes pulse {
+    from { transform: scale(1); }
+    to   { transform: scale(1.12); }
+  }
+  #gameover-screen .btn-start { margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-item">
+    <span class="hud-label">BEST</span>
+    <span class="hud-val" id="hi-val">0</span>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">SCORE</span>
+    <span class="hud-val" id="score-val">0</span>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">出現</span>
+    <span class="hud-val" id="appeared-val">0</span>
+  </div>
+  <div class="hud-item">
+    <span class="hud-label">ミス</span>
+    <span class="hud-val" id="miss-val">0/5</span>
+  </div>
+</div>
+
+<canvas id="c"></canvas>
+
+<!-- START画面 -->
+<div id="start-screen">
+  <h1>🐞 てんとう虫ハント</h1>
+  <p>画面を横切るてんとう虫を<br>タッチして捕まえよう！<br>5匹逃したらゲームオーバー</p>
+  <button class="btn-start" id="btn-start">ゲームスタート</button>
+</div>
+
+<!-- GAMEOVER画面 -->
+<div id="gameover-screen">
+  <h2>GAME OVER</h2>
+  <div class="score-box">
+    <div class="label">スコア</div>
+    <div class="val" id="final-score">0</div>
+  </div>
+  <div class="score-box">
+    <div class="label">ハイスコア</div>
+    <div class="val" id="final-hi">0</div>
+  </div>
+  <div id="new-record">★ NEW RECORD ★</div>
+  <button class="btn-start" id="btn-restart">もう一度</button>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+//  Canvas セットアップ
+// ──────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── 2cm → px 換算 ──
+function cmToPx(cm) {
+  // 96 DPI baseline × devicePixelRatio / CSS-px で換算
+  const dpi = 96 * (window.devicePixelRatio || 1);
+  return cm * dpi / 2.54;
+}
+
+// ──────────────────────────────────────────────
+//  カラーバリエーション
+// ──────────────────────────────────────────────
+const SPECIES = [
+  { body: '#e8221a', stroke: '#111' },
+  { body: '#f07020', stroke: '#111' },
+  { body: '#f5df10', stroke: '#111' },
+  { body: '#c40000', stroke: '#111' },
+  { body: '#2aaa55', stroke: '#003' },
+  { body: '#dd10aa', stroke: '#220' },
+  { body: '#f9e0b0', stroke: '#553' },
+  { body: '#8844cc', stroke: '#110' },
+];
+
+// ──────────────────────────────────────────────
+//  てんとう虫クラス（等速直線運動）
+// ──────────────────────────────────────────────
+class Ladybug {
+  constructor() {
+    this.rare = Math.random() >= 0.99;
+    this.sp   = this.rare
+      ? SPECIES[1 + Math.floor(Math.random() * (SPECIES.length - 1))]
+      : SPECIES[0];
+    this.r    = 28 + Math.random() * 16;   // 半径
+    this.alpha = 0;
+    this.captured = false;
+    this.captureAnim = 0;
+
+    // スポーン位置と速度を計算
+    this._spawn();
+  }
+
+  _spawn() {
+    const r = this.r;
+    // 画面の4辺からランダムに出現
+    const side = Math.floor(Math.random() * 4);
+    let sx, sy;
+    if (side === 0) { sx = Math.random() * W; sy = -r; }
+    else if (side === 1) { sx = W + r;           sy = Math.random() * H; }
+    else if (side === 2) { sx = Math.random() * W; sy = H + r; }
+    else                 { sx = -r;               sy = Math.random() * H; }
+
+    this.x = sx;
+    this.y = sy;
+
+    // 画面中心から半径2cmの円内を通過させる
+    const cx = W / 2, cy = H / 2;
+    const passR = cmToPx(2);
+    const offsetAngle = Math.random() * Math.PI * 2;
+    const passX = cx + Math.cos(offsetAngle) * Math.random() * passR;
+    const passY = cy + Math.sin(offsetAngle) * Math.random() * passR;
+
+    // 方向ベクトル（通過点へ向かう）
+    const dx = passX - sx;
+    const dy = passY - sy;
+    const dist = Math.hypot(dx, dy);
+    const nx = dx / dist;
+    const ny = dy / dist;
+
+    // 速さをランダム（px/s）— 画面幅の 15〜40% 相当
+    const baseSpeed = (W * (0.15 + Math.random() * 0.25)) / 1000;
+    const speed = this.rare ? baseSpeed * 5 : baseSpeed; // px/ms
+    this.vx = nx * speed;
+    this.vy = ny * speed;
+
+    // 向き（頭の方向）
+    this.angle = Math.atan2(nx, -ny) - Math.PI / 2;
+  }
+
+  update(dt) {
+    if (this.captured) {
+      this.captureAnim += dt;
+      this.alpha = Math.max(0, 1 - this.captureAnim / 300);
+      return;
+    }
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.alpha = Math.min(1, this.alpha + dt / 400);  // フェードイン
+  }
+
+  isOffScreen() {
+    const margin = this.r * 2;
+    return (
+      this.x < -margin || this.x > W + margin ||
+      this.y < -margin || this.y > H + margin
+    );
+  }
+
+  hitTest(tx, ty) {
+    const dx = tx - this.x, dy = ty - this.y;
+    return dx * dx + dy * dy < this.r * this.r * 1.8;
+  }
+
+  draw() {
+    if (this.alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+
+    if (this.captured) {
+      // 捕獲アニメ：拡大しながら消える
+      const scale = 1 + this.captureAnim / 200;
+      ctx.translate(this.x, this.y);
+      ctx.scale(scale, scale);
+      ctx.rotate(this.angle + Math.PI / 2);
+    } else {
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle + Math.PI / 2);
+    }
+
+    const r  = this.r;
+    const sp = this.sp;
+    const BLACK = '#111111';
+    const lw  = r * 0.07;
+
+    // ボディ
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = sp.body;
+    ctx.fill();
+    ctx.strokeStyle = BLACK;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+
+    // 翅クリップ
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, r - lw * 0.5, 0, Math.PI * 2);
+    ctx.clip();
+
+    // 分割線
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.lineTo(0,  r);
+    ctx.strokeStyle = BLACK;
+    ctx.lineWidth = lw;
+    ctx.stroke();
+
+    // 水玉
+    const sr = r * 0.175;
+    const SPOTS = [
+      [ 0.00, -0.36],
+      [-0.70, -0.48], [ 0.70, -0.48],
+      [-0.42,  0.18], [ 0.42,  0.18],
+      [-0.62,  0.70], [ 0.62,  0.70],
+    ];
+    ctx.fillStyle = BLACK;
+    SPOTS.forEach(([sx, sy]) => {
+      ctx.beginPath();
+      ctx.arc(sx * r, sy * r, sr, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    // 頭部
+    const hx = 0, hy = -r * 0.80, hr = r * 0.42;
+    ctx.beginPath();
+    ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+    ctx.fillStyle = BLACK;
+    ctx.fill();
+
+    // 触角
+    [-0.50, 0.50].forEach(ox => {
+      const ax = hx + ox * hr;
+      const ay = hy - hr * 0.62;
+      const tw = hr * 0.14, th = hr * 0.52;
+      ctx.beginPath();
+      ctx.roundRect(ax - tw, ay - th, tw * 2, th * 1.1, tw);
+      ctx.fillStyle = BLACK;
+      ctx.fill();
+    });
+
+    // 目
+    [-0.52, 0.52].forEach(ox => {
+      const ex = hx + ox * hr, ey = hy - hr * 0.05;
+      ctx.beginPath();
+      ctx.arc(ex, ey, hr * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ex + ox * hr * 0.12, ey + hr * 0.08, hr * 0.20, 0, Math.PI * 2);
+      ctx.fillStyle = BLACK;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ex + ox * hr * 0.04 - hr * 0.10, ey - hr * 0.12, hr * 0.09, 0, Math.PI * 2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+    });
+
+    // 光沢
+    const grad = ctx.createRadialGradient(-r*0.28, -r*0.32, r*0.02, -r*0.12, -r*0.18, r*0.68);
+    grad.addColorStop(0, 'rgba(255,255,255,0.45)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+// ──────────────────────────────────────────────
+//  フローティングテキスト（コンボ表示）
+// ──────────────────────────────────────────────
+class FloatText {
+  constructor(x, y, text, color = '#fff') {
+    this.x = x; this.y = y;
+    this.text  = text;
+    this.color = color;
+    this.life  = 900;   // ms
+    this.age   = 0;
+  }
+  update(dt) { this.age += dt; this.y -= dt * 0.06; }
+  get dead()  { return this.age >= this.life; }
+  draw() {
+    const alpha = 1 - this.age / this.life;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 28px "Helvetica Neue", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur  = 6;
+    ctx.fillText(this.text, this.x, this.y);
+    ctx.restore();
+  }
+}
+
+// ──────────────────────────────────────────────
+//  ゲーム状態
+// ──────────────────────────────────────────────
+const STATE = { START: 0, PLAYING: 1, GAMEOVER: 2 };
+let state = STATE.START;
+
+let bugs      = [];
+let floats    = [];
+let score     = 0;
+let appeared  = 0;
+let missed    = 0;
+let combo     = 0;
+let highScore = parseInt(localStorage.getItem('lb_hunt_hi') || '0', 10);
+
+let nextSpawn  = 800;    // ms
+let lastTime   = 0;
+let spawnInterval = 2000;
+
+const MAX_MISS = 5;
+
+// ── HUD要素 ──
+const hiEl       = document.getElementById('hi-val');
+const scoreEl    = document.getElementById('score-val');
+const appearedEl = document.getElementById('appeared-val');
+const missEl     = document.getElementById('miss-val');
+
+function updateHUD() {
+  hiEl.textContent       = highScore;
+  scoreEl.textContent    = score;
+  appearedEl.textContent = appeared;
+  missEl.textContent     = `${missed}/${MAX_MISS}`;
+}
+updateHUD();
+
+// ──────────────────────────────────────────────
+//  ゲーム開始 / リセット
+// ──────────────────────────────────────────────
+function startGame() {
+  bugs      = [];
+  floats    = [];
+  score     = 0;
+  appeared  = 0;
+  missed    = 0;
+  combo     = 0;
+  nextSpawn = 1500;
+  spawnInterval = 4000;
+  hiEl.classList.remove('glow');
+  updateHUD();
+
+  document.getElementById('start-screen').style.display   = 'none';
+  document.getElementById('gameover-screen').style.display = 'none';
+
+  state = STATE.PLAYING;
+}
+
+function endGame() {
+  state = STATE.GAMEOVER;
+
+  const isNew = score > highScore;
+  if (isNew) {
+    highScore = score;
+    localStorage.setItem('lb_hunt_hi', highScore);
+    hiEl.textContent = highScore;
+    hiEl.classList.add('glow');
+  }
+
+  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-hi').textContent    = highScore;
+  document.getElementById('new-record').style.display = isNew ? 'block' : 'none';
+
+  const go = document.getElementById('gameover-screen');
+  go.style.display = 'flex';
+}
+
+// ──────────────────────────────────────────────
+//  スポーン
+// ──────────────────────────────────────────────
+function spawnBug() {
+  bugs.push(new Ladybug());
+  appeared++;
+  updateHUD();
+  // スポーン間隔を徐々に短縮（最短1.5秒）
+  spawnInterval = Math.max(800, spawnInterval - 80);
+  nextSpawn = spawnInterval * (0.6 + Math.random() * 0.8);
+}
+
+// ──────────────────────────────────────────────
+//  捕獲処理
+// ──────────────────────────────────────────────
+function capture(bug) {
+  if (bug.captured) return;
+  bug.captured = true;
+  combo++;
+
+  let bonus = 0;
+  if      (combo >= 5) bonus = 20;
+  else if (combo === 4) bonus = 15;
+  else if (combo === 3) bonus = 10;
+  else if (combo === 2) bonus = 5;
+
+  const pts = 10 + bonus;
+  score += pts;
+  updateHUD();
+
+  // フロートテキスト
+  let txt = `+${pts}`;
+  let col = '#fff';
+  if (combo >= 2) {
+    txt = `COMBO x${combo}！ +${pts}`;
+    col = combo >= 4 ? '#ffd700' : '#ffee55';
+  }
+  floats.push(new FloatText(bug.x, bug.y - bug.r - 10, txt, col));
+}
+
+// ──────────────────────────────────────────────
+//  タッチ / クリック
+// ──────────────────────────────────────────────
+function handleTouch(e) {
+  if (state !== STATE.PLAYING) return;
+  e.preventDefault();
+  const touches = e.changedTouches || [e];
+  for (const t of touches) {
+    const rect = canvas.getBoundingClientRect();
+    const tx = (t.clientX ?? t.pageX) - rect.left;
+    const ty = (t.clientY ?? t.pageY) - rect.top;
+    bugs.forEach(b => { if (!b.captured && b.hitTest(tx, ty)) capture(b); });
+  }
+}
+canvas.addEventListener('touchstart', handleTouch, { passive: false });
+canvas.addEventListener('mousedown',  handleTouch);
+
+// ──────────────────────────────────────────────
+//  メインループ
+// ──────────────────────────────────────────────
+function loop(now) {
+  const dt = lastTime ? Math.min(now - lastTime, 100) : 16;
+  lastTime = now;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (state === STATE.PLAYING) {
+    // スポーン
+    nextSpawn -= dt;
+    if (nextSpawn <= 0) spawnBug();
+
+    // てんとう虫の更新
+    const kept = [];
+    for (const b of bugs) {
+      b.update(dt);
+      b.draw();
+
+      if (b.captured && b.alpha <= 0) continue;  // 捕獲アニメ完了 → 削除
+
+      if (!b.captured && b.isOffScreen()) {
+        // ミス
+        missed++;
+        combo = 0;  // コンボリセット
+        updateHUD();
+        if (missed >= MAX_MISS) {
+          endGame();
+          requestAnimationFrame(loop);
+          return;
+        }
+        continue;   // 削除
+      }
+      kept.push(b);
+    }
+    bugs = kept;
+
+    // フロートテキスト
+    floats = floats.filter(f => { f.update(dt); f.draw(); return !f.dead; });
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// ──────────────────────────────────────────────
+//  ボタン
+// ──────────────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', startGame);
+
+// ── 開始 ──
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
