@@ -245,7 +245,7 @@ class Ladybug {
 
     // 画面中心から半径2cmの円内を通過させる
     const cx = W / 2, cy = H / 2;
-    const passR = cmToPx(2);
+    const passR = cmToPx(5);
     const offsetAngle = Math.random() * Math.PI * 2;
     const passX = cx + Math.cos(offsetAngle) * Math.random() * passR;
     const passY = cy + Math.sin(offsetAngle) * Math.random() * passR;
@@ -259,7 +259,7 @@ class Ladybug {
 
     // 速さをランダム（px/s）— 画面幅の 15〜40% 相当
     const baseSpeed = (W * (0.15 + Math.random() * 0.25)) / 1000;
-    const speed = this.rare ? baseSpeed * 5 : baseSpeed; // px/ms
+    const speed = this.rare ? baseSpeed * 5 : baseSpeed * speedLevel; // px/ms
     this.vx = nx * speed;
     this.vy = ny * speed;
 
@@ -443,6 +443,7 @@ let highScore = parseInt(localStorage.getItem('lb_hunt_hi') || '0', 10);
 let nextSpawn  = 800;    // ms
 let lastTime   = 0;
 let spawnInterval = 2000;
+let speedLevel = 1.0;    // 通常バグの基準速度倍率（コンボで上昇）
 
 const MAX_MISS = 5;
 
@@ -470,6 +471,7 @@ function startGame() {
   appeared  = 0;
   missed    = 0;
   combo     = 0;
+  speedLevel = 1.0;
   nextSpawn = 1500;
   spawnInterval = 4000;
   hiEl.classList.remove('glow');
@@ -519,6 +521,7 @@ function capture(bug) {
   if (bug.captured) return;
   bug.captured = true;
   combo++;
+  speedLevel = Math.min(3.0, 1.0 + combo * 0.1); // コンボごとに10%加速、最大3倍
 
   let bonus = 0;
   if      (combo >= 5) bonus = 20;
@@ -582,7 +585,8 @@ function loop(now) {
       if (!b.captured && b.isOffScreen()) {
         // ミス
         missed++;
-        combo = 0;  // コンボリセット
+        combo = 0;
+        speedLevel = 1.0;  // 速度リセット
         updateHUD();
         if (missed >= MAX_MISS) {
           endGame();
