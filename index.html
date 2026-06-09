@@ -523,11 +523,7 @@ function capture(bug) {
   combo++;
   speedLevel = Math.min(3.0, 1.0 + combo * 0.1); // コンボごとに10%加速、最大3倍
 
-  let bonus = 0;
-  if      (combo >= 5) bonus = 20;
-  else if (combo === 4) bonus = 15;
-  else if (combo === 3) bonus = 10;
-  else if (combo === 2) bonus = 5;
+  const bonus = combo; // 連続捕獲数ぶんそのままボーナス加点（上限なし）
 
   const pts = 10 + bonus;
   score += pts;
