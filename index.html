@@ -156,7 +156,7 @@
 
 <!-- START画面 -->
 <div id="start-screen">
-  <h1>🐞 てんとう虫ハント</h1>
+  <h1>🐞 てんとう虫<br>ハント</h1>
   <p>画面を横切るてんとう虫を<br>タッチして捕まえよう！<br>5匹逃したらゲームオーバー</p>
   <button class="btn-start" id="btn-start">ゲームスタート</button>
 </div>
@@ -444,6 +444,7 @@ let nextSpawn  = 800;    // ms
 let lastTime   = 0;
 let spawnInterval = 2000;
 let speedLevel = 1.0;    // 通常バグの基準速度倍率（コンボで上昇）
+let multiSpawn = 1;      // 同時スポーン数（50コンボ毎に+1）
 
 const MAX_MISS = 5;
 
@@ -472,6 +473,7 @@ function startGame() {
   missed    = 0;
   combo     = 0;
   speedLevel = 1.0;
+  multiSpawn = 1;
   nextSpawn = 1500;
   spawnInterval = 4000;
   hiEl.classList.remove('glow');
@@ -506,10 +508,12 @@ function endGame() {
 //  スポーン
 // ──────────────────────────────────────────────
 function spawnBug() {
-  bugs.push(new Ladybug());
-  appeared++;
+  for (let i = 0; i < multiSpawn; i++) {
+    bugs.push(new Ladybug());
+    appeared++;
+  }
   updateHUD();
-  // スポーン間隔を徐々に短縮（最短1.5秒）
+  // スポーン間隔を徐々に短縮（最短800ms）
   spawnInterval = Math.max(800, spawnInterval - 80);
   nextSpawn = spawnInterval * (0.6 + Math.random() * 0.8);
 }
@@ -524,21 +528,21 @@ function capture(bug) {
   speedLevel = Math.min(3.0, 1.0 + combo * 0.1); // コンボごとに10%加速、最大3倍
   // コンボに応じてスポーン間隔を短縮（上限：最短800ms）
   spawnInterval = Math.max(800, 2000 - combo * 30);
+  // 50コンボの倍数で同時スポーン数+1
+  multiSpawn = 1 + Math.floor(combo / 50);
 
-  const bonus = combo; // 連続捕獲数ぶんそのままボーナス加点（上限なし）
-
-  const pts = 10 + bonus;
+  // 得点計算：レアは固定500点、通常は10+コンボボーナス
+  const pts = bug.rare ? 500 : 10 + combo;
   score += pts;
   updateHUD();
 
-  // フロートテキスト
-  let txt = `+${pts}`;
-  let col = '#fff';
-  if (combo >= 2) {
-    txt = `COMBO x${combo}！ +${pts}`;
-    col = combo >= 4 ? '#ffd700' : '#ffee55';
+  // フロートテキスト（点数非表示、コンボ表示のみ）
+  if (bug.rare) {
+    floats.push(new FloatText(bug.x, bug.y - bug.r - 10, '⭐ RARE！', '#ffd700'));
+  } else if (combo >= 2) {
+    const col = combo >= 4 ? '#ffd700' : '#ffee55';
+    floats.push(new FloatText(bug.x, bug.y - bug.r - 10, `COMBO x${combo}！`, col));
   }
-  floats.push(new FloatText(bug.x, bug.y - bug.r - 10, txt, col));
 }
 
 // ──────────────────────────────────────────────
@@ -586,6 +590,7 @@ function loop(now) {
         combo = 0;
         speedLevel = 1.0;      // 速度リセット
         spawnInterval = 2000;  // 出現頻度リセット
+        multiSpawn = 1;        // 同時スポーン数リセット
         updateHUD();
         if (missed >= MAX_MISS) {
           endGame();
