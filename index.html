@@ -522,6 +522,8 @@ function capture(bug) {
   bug.captured = true;
   combo++;
   speedLevel = Math.min(3.0, 1.0 + combo * 0.1); // コンボごとに10%加速、最大3倍
+  // コンボに応じてスポーン間隔を短縮（上限：最短800ms）
+  spawnInterval = Math.max(800, 2000 - combo * 30);
 
   const bonus = combo; // 連続捕獲数ぶんそのままボーナス加点（上限なし）
 
@@ -582,7 +584,8 @@ function loop(now) {
         // ミス
         missed++;
         combo = 0;
-        speedLevel = 1.0;  // 速度リセット
+        speedLevel = 1.0;      // 速度リセット
+        spawnInterval = 2000;  // 出現頻度リセット
         updateHUD();
         if (missed >= MAX_MISS) {
           endGame();
