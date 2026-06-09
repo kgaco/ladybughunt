@@ -444,6 +444,7 @@ let nextSpawn  = 800;    // ms
 let lastTime   = 0;
 let spawnInterval = 2000;
 let speedLevel = 1.0;    // 通常バグの基準速度倍率（コンボで上昇）
+let maxBugs    = 1;      // 同時出現数（50コンボごとに+1）
 
 const MAX_MISS = 5;
 
@@ -472,6 +473,7 @@ function startGame() {
   missed    = 0;
   combo     = 0;
   speedLevel = 1.0;
+  maxBugs   = 1;
   nextSpawn = 1500;
   spawnInterval = 4000;
   hiEl.classList.remove('glow');
@@ -506,10 +508,12 @@ function endGame() {
 //  スポーン
 // ──────────────────────────────────────────────
 function spawnBug() {
-  bugs.push(new Ladybug());
-  appeared++;
+  for (let i = 0; i < maxBugs; i++) {
+    bugs.push(new Ladybug());
+    appeared++;
+  }
   updateHUD();
-  // スポーン間隔を徐々に短縮（最短1.5秒）
+  // スポーン間隔を徐々に短縮（最短800ms）
   spawnInterval = Math.max(800, spawnInterval - 80);
   nextSpawn = spawnInterval * (0.6 + Math.random() * 0.8);
 }
@@ -524,10 +528,12 @@ function capture(bug) {
   speedLevel = Math.min(3.0, 1.0 + combo * 0.1); // コンボごとに10%加速、最大3倍
   // コンボに応じてスポーン間隔を短縮（上限：最短800ms）
   spawnInterval = Math.max(800, 2000 - combo * 30);
+  // 50コンボの倍数で同時出現数+1
+  if (combo % 50 === 0) maxBugs++;
 
   const bonus = combo; // 連続捕獲数ぶんそのままボーナス加点（上限なし）
 
-  const pts = 10 + bonus;
+  const pts = (bug.rare ? 500 : 10) + bonus;
   score += pts;
   updateHUD();
 
